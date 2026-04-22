@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PulseCall — DNC list</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg:#0f1117; --panel:#1a1d2e; --border:#2a2e44; --text:#e0e0e0;
+      --muted:#7d85a3; --accent:#4fb3ff; --accent-fade:#4fb3ff22;
+      --good:#53d294; --warn:#f5c518; --bad:#ff6b6b;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:24px 32px; border-bottom:1px solid var(--border);
+             display:flex; align-items:center; gap:20px; }
+    header a { color:var(--accent); text-decoration:none; }
+    header h1 { margin:0; font-size:22px; }
+    main { padding:24px 32px; max-width:1100px; margin:0 auto;
+           display:grid; grid-template-columns:1fr 350px; gap:24px; }
+    @media (max-width:900px) { main { grid-template-columns:1fr; } }
+    .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .card h2 { margin:0; padding:14px 20px; border-bottom:1px solid var(--border);
+               font-size:13px; color:var(--muted); font-weight:600;
+               text-transform:uppercase; letter-spacing:0.05em; }
+    .card .body { padding:16px 20px; }
+
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:10px 16px; text-align:left; border-bottom:1px solid var(--border); font-size:13px; }
+    th { background:#151827; color:var(--muted); font-size:11px; font-weight:600;
+         text-transform:uppercase; letter-spacing:0.05em; }
+    tr:last-child td { border-bottom:0; }
+    tr:hover td { background:#1f2338; }
+    .reason-chip { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; }
+    .reason-chip.user_request { background:#3a1414; color:var(--bad); }
+    .reason-chip.inbound_stop { background:#3a2e14; color:var(--warn); }
+    .reason-chip.manual       { background:#2a2e44; color:var(--muted); }
+    .reason-chip.detected_in_answer { background:#3a1438; color:#ff8ad6; }
+
+    button {
+      background:var(--accent); color:#0a0d14; border:0;
+      padding:8px 14px; border-radius:6px; font-weight:600; cursor:pointer;
+      font-size:13px;
+    }
+    button.secondary {
+      background:var(--panel); color:var(--text); border:1px solid var(--border);
+    }
+    button.danger {
+      background:transparent; color:var(--bad); border:1px solid var(--bad);
+      font-weight:500; padding:4px 8px;
+    }
+    label { display:block; margin-bottom:12px; font-size:13px; }
+    label span { display:block; color:var(--muted); margin-bottom:4px; }
+    input, textarea {
+      width:100%; padding:8px 10px; background:var(--bg); color:var(--text);
+      border:1px solid var(--border); border-radius:6px; font:inherit;
+    }
+    textarea { min-height:120px; font:12px/1.4 monospace; resize:vertical; }
+
+    .empty { color:var(--muted); padding:20px; text-align:center; font-size:13px; }
+    .filter { display:flex; gap:8px; margin-bottom:12px; padding:12px 20px;
+              border-bottom:1px solid var(--border); background:#151827; }
+    .filter input { flex:1; max-width:280px; }
+
+    .counts { display:flex; gap:16px; padding:12px 20px; font-size:12px;
+              color:var(--muted); border-bottom:1px solid var(--border); }
+    .counts b { color:var(--text); font-variant-numeric:tabular-nums; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Dashboard</a>
+    <h1>Do-not-call list</h1>
+    <div style="margin-left:auto; display:flex; gap:12px;">
+      <a href="/lists.html" style="color:var(--accent); text-decoration:none;">Voter lists →</a>
+      <a href="/reports.html" style="color:var(--accent); text-decoration:none;">Reports →</a>
+    </div>
+  </header>
+  <main>
+    <div class="card">
+      <h2>All DNC entries <span id="count" style="color:var(--text);float:right;">—</span></h2>
+      <div class="counts" id="counts"></div>
+      <div class="filter">
+        <input id="q" placeholder="Filter by phone…" />
+      </div>
+      <div style="max-height:620px; overflow:auto;">
+        <table>
+          <thead><tr>
+            <th>Phone</th><th>Reason</th><th>Source call</th><th>Added</th><th style="width:90px;"></th>
+          </tr></thead>
+          <tbody id="tbody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card">
+        <h2>Add one</h2>
+        <div class="body">
+          <form id="addOne">
+            <label><span>Phone (E.164)</span>
+              <input name="phone" placeholder="+15551234567" required /></label>
+            <label><span>Reason</span>
+              <select name="reason" style="width:100%; padding:8px 10px;
+                                           background:var(--bg); color:var(--text);
+                                           border:1px solid var(--border); border-radius:6px;">
+                <option value="manual">manual</option>
+                <option value="user_request">user_request (said so on a call)</option>
+                <option value="inbound_stop">inbound_stop (texted STOP)</option>
+                <option value="regulatory">regulatory</option>
+              </select>
+            </label>
+            <button type="submit">Add to DNC</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Bulk upload</h2>
+        <div class="body">
+          <p style="color:var(--muted); font-size:12px; margin:0 0 12px 0;">
+            One per line. Headers optional. If no header, the first field is the phone,
+            the second (optional) is the reason.
+          </p>
+          <label>
+            <textarea id="bulkCsv" placeholder="phone,reason
++15551110001,user_request
++15551110002,inbound_stop
++15551110003"></textarea>
+          </label>
+          <button id="bulkBtn">Upload</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function escapeHtml(s) {
+      return (s ?? "").toString().replace(/[&<>"']/g,
+        c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+    function fmt(ts) {
+      if (!ts) return "—";
+      const d = new Date(ts.replace(" ", "T") + "Z");
+      const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 60)    return "just now";
+      if (diff < 3600)  return `${Math.floor(diff/60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+      return `${Math.floor(diff/86400)}d ago`;
+    }
+
+    let allRows = [];
+
+    async function load() {
+      const r = await fetch("/api/dnc");
+      const { dnc } = await r.json();
+      allRows = dnc || [];
+      document.getElementById("count").textContent = allRows.length;
+      const reasonCounts = {};
+      for (const e of allRows) {
+        reasonCounts[e.reason || "manual"] = (reasonCounts[e.reason || "manual"] || 0) + 1;
+      }
+      document.getElementById("counts").innerHTML =
+        Object.entries(reasonCounts).map(([k,v]) =>
+          `<div>${escapeHtml(k)}: <b>${v}</b></div>`
+        ).join("") || `<div>Empty.</div>`;
+      render();
+    }
+
+    function render() {
+      const q = document.getElementById("q").value.trim();
+      const rows = q ? allRows.filter(r => (r.phone||"").includes(q)) : allRows;
+      const tbody = document.getElementById("tbody");
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty">
+          ${q ? `No matches for "${escapeHtml(q)}".` : "DNC list is empty."}
+        </td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.map(r => `
+        <tr data-phone="${encodeURIComponent(r.phone)}">
+          <td style="font-variant-numeric:tabular-nums;">${escapeHtml(r.phone)}</td>
+          <td><span class="reason-chip ${escapeHtml(r.reason||'manual')}">${escapeHtml(r.reason||'manual')}</span></td>
+          <td style="color:var(--muted); font-size:12px;">${r.source_call
+              ? `<a href="/call.html?id=${encodeURIComponent(r.source_call)}">${escapeHtml(r.source_call.slice(0,10))}…</a>`
+              : "—"}</td>
+          <td style="color:var(--muted); font-size:12px;">${fmt(r.created_at)}</td>
+          <td><button class="danger" data-action="delete">Remove</button></td>
+        </tr>`).join("");
+      tbody.querySelectorAll('[data-action=delete]').forEach(btn => {
+        btn.onclick = async (e) => {
+          const tr = e.target.closest("tr");
+          const phone = decodeURIComponent(tr.dataset.phone);
+          if (!confirm(`Remove ${phone} from the DNC list? They will be callable again.`)) return;
+          const r = await fetch(`/api/dnc/${encodeURIComponent(phone)}`, { method:"DELETE" });
+          if (r.ok) load();
+        };
+      });
+    }
+
+    document.getElementById("q").addEventListener("input", render);
+
+    document.getElementById("addOne").onsubmit = async (e) => {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      const r = await fetch("/api/dnc", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ phone: form.get("phone"), reason: form.get("reason") }),
+      });
+      if (r.ok) { e.target.reset(); load(); }
+      else alert("add failed");
+    };
+
+    document.getElementById("bulkBtn").onclick = async () => {
+      const csv = document.getElementById("bulkCsv").value;
+      if (!csv.trim()) return;
+      const r = await fetch("/api/dnc/bulk", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ csv }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        alert(`Added ${j.added}. Skipped ${j.skipped}.`);
+        document.getElementById("bulkCsv").value = "";
+        load();
+      } else {
+        alert("bulk failed: " + await r.text());
+      }
+    };
+
+    load();
+  </script>
+</body>
+</html>

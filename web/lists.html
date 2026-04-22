@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PulseCall — Voter lists</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg:#0f1117; --panel:#1a1d2e; --border:#2a2e44; --text:#e0e0e0;
+      --muted:#7d85a3; --accent:#4fb3ff; --accent-fade:#4fb3ff22;
+      --good:#53d294; --warn:#f5c518; --bad:#ff6b6b;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:24px 32px; border-bottom:1px solid var(--border);
+             display:flex; align-items:center; gap:20px; }
+    header a { color:var(--accent); text-decoration:none; }
+    header h1 { margin:0; font-size:22px; letter-spacing:-0.01em; }
+    main { padding:24px 32px; max-width:1200px; margin:0 auto; }
+    .bar { display:flex; gap:12px; margin-bottom:20px; align-items:center; }
+    button, a.btn {
+      background:var(--accent); color:#0a0d14; border:0;
+      padding:8px 14px; border-radius:6px; font-weight:600; cursor:pointer;
+      font-size:13px; text-decoration:none;
+    }
+    button.secondary, a.btn.secondary {
+      background:var(--panel); color:var(--text); border:1px solid var(--border);
+    }
+    table { width:100%; border-collapse:collapse; background:var(--panel);
+            border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    th, td { padding:12px 16px; text-align:left; border-bottom:1px solid var(--border); }
+    th { background:#151827; color:var(--muted); font-weight:600;
+         font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+    tr:last-child td { border-bottom:0; }
+    tr:hover td { background:#1f2338; }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .counts { color:var(--muted); font-variant-numeric:tabular-nums; }
+    .chip { display:inline-block; padding:2px 8px; border-radius:4px;
+            background:#2a2e44; color:var(--muted); font-size:11px;
+            margin-right:4px; }
+    .chip.M { background:#14253a; color:#6bb6ff; }
+    .chip.F { background:#3a1438; color:#ff8ad6; }
+
+    dialog { background:var(--panel); color:var(--text);
+             border:1px solid var(--border); border-radius:10px; padding:20px;
+             width:min(500px,90vw); }
+    dialog::backdrop { background:rgba(0,0,0,0.6); }
+    dialog h2 { margin:0 0 16px 0; }
+    label { display:block; margin-bottom:12px; font-size:13px; }
+    label span { display:block; color:var(--muted); margin-bottom:4px; }
+    input, textarea {
+      width:100%; padding:8px 10px; background:var(--bg); color:var(--text);
+      border:1px solid var(--border); border-radius:6px; font:inherit;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Dashboard</a>
+    <h1>Voter lists</h1>
+    <a href="/reports.html" style="margin-left:auto;">Reports →</a>
+  </header>
+  <main>
+    <div class="bar">
+      <button id="newBtn">+ New list</button>
+      <div class="counts">Lists are shared across campaigns — pick one or more when launching a campaign.</div>
+    </div>
+    <table>
+      <thead><tr><th>Name</th><th>Voters</th><th>Demographics</th><th>Description</th><th>Actions</th></tr></thead>
+      <tbody id="tbody"><tr><td colspan="5" class="counts">Loading…</td></tr></tbody>
+    </table>
+  </main>
+
+  <dialog id="newDialog">
+    <h2>New voter list</h2>
+    <form id="newForm">
+      <label><span>Name</span>
+        <input name="name" required placeholder="e.g. Boston Women 25-45" /></label>
+      <label><span>Description (optional)</span>
+        <textarea name="description" rows="2"
+          placeholder="Where/when/how this list was sourced — useful context for reporting."></textarea>
+      </label>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="secondary" id="cancelNew">Cancel</button>
+        <button type="submit">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const tbody = document.getElementById("tbody");
+    function escapeHtml(s) {
+      return (s ?? "").toString().replace(/[&<>"']/g,
+        c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+    async function load() {
+      const r = await fetch("/api/lists"); const { lists } = await r.json();
+      if (!lists.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="counts">No lists yet. Click "New list" to create one.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = lists.map(l => `
+        <tr>
+          <td><a href="/list.html?id=${l.id}">${escapeHtml(l.name)}</a></td>
+          <td><b>${l.voter_count}</b></td>
+          <td>
+            ${l.male_count   ? `<span class="chip M">M ${l.male_count}</span>` : ""}
+            ${l.female_count ? `<span class="chip F">F ${l.female_count}</span>` : ""}
+            ${l.other_count  ? `<span class="chip">Other ${l.other_count}</span>` : ""}
+          </td>
+          <td class="counts">${escapeHtml(l.description || "")}</td>
+          <td><a href="/list.html?id=${l.id}">Manage →</a></td>
+        </tr>`).join("");
+    }
+    const dialog = document.getElementById("newDialog");
+    document.getElementById("newBtn").onclick = () => dialog.showModal();
+    document.getElementById("cancelNew").onclick = () => dialog.close();
+    document.getElementById("newForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      const r = await fetch("/api/lists", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          name: form.get("name"),
+          description: form.get("description") || null,
+        }),
+      });
+      if (r.ok) {
+        const { list_id } = await r.json();
+        location.href = `/list.html?id=${list_id}`;
+      } else {
+        alert("Create failed: " + (await r.text()));
+      }
+    };
+    load();
+  </script>
+</body>
+</html>

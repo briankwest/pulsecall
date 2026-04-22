@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PulseCall — Campaigns</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #1a1d2e;
+      --border: #2a2e44;
+      --text: #e0e0e0;
+      --muted: #7d85a3;
+      --accent: #4fb3ff;
+      --accent-fade: #4fb3ff22;
+      --good: #53d294;
+      --warn: #f5c518;
+      --bad: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font: 14px/1.5 system-ui, -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    header { padding: 24px 32px; border-bottom: 1px solid var(--border);
+             display: flex; align-items: center; justify-content: space-between; }
+    header h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+    header h1 .pulse { color: var(--accent); }
+    .phone { color: var(--muted); font-variant-numeric: tabular-nums; }
+    main { padding: 24px 32px; max-width: 1200px; margin: 0 auto; }
+
+    .bar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
+    .bar button, .bar a.btn {
+      background: var(--accent); color: #0a0d14; border: 0;
+      padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;
+      text-decoration: none; font-size: 13px;
+    }
+    .bar button.secondary { background: var(--panel); color: var(--text);
+                             border: 1px solid var(--border); }
+    .bar button:hover { filter: brightness(1.1); }
+
+    table { width: 100%; border-collapse: collapse; background: var(--panel);
+            border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: #151827; color: var(--muted); font-weight: 600;
+         font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+    tr:last-child td { border-bottom: 0; }
+    tr:hover td { background: #1f2338; }
+
+    .status { display: inline-block; padding: 3px 8px; border-radius: 4px;
+              font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .status.draft      { background: #2a2e44; color: var(--muted); }
+    .status.running    { background: var(--accent-fade); color: var(--accent); }
+    .status.paused     { background: #3a2e14; color: var(--warn); }
+    .status.completed  { background: #14362a; color: var(--good); }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .counts { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .counts b { color: var(--text); }
+
+    dialog {
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 10px; padding: 20px;
+      width: min(600px, 90vw);
+    }
+    dialog::backdrop { background: rgba(0,0,0,0.6); }
+    dialog h2 { margin: 0 0 16px 0; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    label span { display: block; color: var(--muted); margin-bottom: 4px; }
+    input, textarea, select {
+      width: 100%; padding: 8px 10px; background: var(--bg);
+      color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+      font: inherit;
+    }
+    textarea { min-height: 60px; resize: vertical; }
+    .qblock {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; margin-bottom: 10px; position: relative;
+    }
+    .qblock .head {
+      display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px;
+    }
+    .qblock .head .qnum {
+      font-weight: 600; color: var(--muted); font-size: 12px;
+      padding-top: 8px; min-width: 28px;
+    }
+    .qblock .head input[name=prompt_text] { flex: 1; }
+    .qblock .head button.rm {
+      background: transparent; color: var(--bad); border: 0;
+      cursor: pointer; font-size: 18px; padding: 6px 8px;
+    }
+    .qblock .mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .qblock .choices-hint {
+      color: var(--muted); font-size: 11px; margin-top: 2px; min-height: 14px;
+    }
+    .qblock label.chk {
+      display: flex; align-items: center; gap: 6px; font-size: 12px;
+      color: var(--muted); margin-top: 6px; cursor: pointer;
+    }
+    .qblock label.chk input { width: auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span class="pulse">●</span> PulseCall</h1>
+    <div class="phone" id="phone">—</div>
+  </header>
+  <main>
+    <div class="bar">
+      <button id="newCampaign">+ New campaign</button>
+      <a class="btn secondary" href="/lists.html">Voter lists</a>
+      <a class="btn secondary" href="/reports.html">Reports</a>
+      <a class="btn secondary" href="/dnc.html">DNC list</a>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th>Campaign</th><th>Status</th><th>Progress</th><th>Created</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="tbody"><tr><td colspan="5" class="counts">Loading…</td></tr></tbody>
+    </table>
+  </main>
+
+  <dialog id="newDialog">
+    <h2>New campaign</h2>
+    <form id="newForm">
+      <label><span>Name</span><input name="name" required /></label>
+      <label><span>Consent / intro script (read to respondent)</span>
+        <textarea name="script_intro" required
+          placeholder="We're calling for a quick public-opinion poll. This will take about two minutes and your answers are anonymous."></textarea>
+      </label>
+      <label><span>Caller ID (auto-filled from .env; editable per campaign)</span>
+        <input name="caller_id" id="callerIdInput" placeholder="+15551234567" /></label>
+      <label><span>Max concurrent calls</span>
+        <input type="number" name="max_concurrent" value="2" min="1" max="10" /></label>
+      <h3 style="margin:16px 0 8px 0;font-size:14px;">Voter lists</h3>
+      <div style="color:var(--muted); font-size:12px; margin-bottom:8px;">
+        Pick one or more lists. <a href="/lists.html">Manage lists →</a>
+      </div>
+      <div id="listPicker" style="border:1px solid var(--border); border-radius:6px;
+                                   padding:8px; max-height:160px; overflow:auto;
+                                   background: var(--bg);"></div>
+      <h3 style="margin:16px 0 8px 0;font-size:14px;">Questions</h3>
+      <div id="questions"></div>
+      <button type="button" id="addQ" class="secondary"
+              style="background:var(--panel);color:var(--text);border:1px solid var(--border);
+                     padding:6px 10px;border-radius:6px;cursor:pointer;margin-top:4px;">
+        + Add question
+      </button>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+        <button type="button" id="cancelNew"
+                style="background:var(--panel);color:var(--text);border:1px solid var(--border);
+                       padding:8px 14px;border-radius:6px;cursor:pointer;">Cancel</button>
+        <button type="submit"
+                style="background:var(--accent);color:#0a0d14;border:0;padding:8px 14px;
+                       border-radius:6px;font-weight:600;cursor:pointer;">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const tbody = document.getElementById("tbody");
+    const phoneEl = document.getElementById("phone");
+
+    function fmt(ts) {
+      if (!ts) return "—";
+      const d = new Date(ts.replace(" ", "T") + "Z");
+      const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 60) return "just now";
+      if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+      return `${Math.floor(diff/86400)}d ago`;
+    }
+
+    async function loadPhone() {
+      try {
+        const r = await fetch("/api/phone"); const j = await r.json();
+        phoneEl.textContent = j.display || j.phone || "—";
+      } catch {}
+    }
+    async function loadCampaigns() {
+      const r = await fetch("/api/campaigns");
+      const { campaigns } = await r.json();
+      if (!campaigns.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="counts">No campaigns yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = campaigns.map(c => `
+        <tr>
+          <td><a href="/campaign.html?id=${c.id}">${escapeHtml(c.name)}</a></td>
+          <td><span class="status ${c.status}">${c.status}</span></td>
+          <td class="counts">
+            <b>${c.completed}</b>/${c.total_voters} done ·
+            ${c.pending} pending ·
+            ${c.calling} calling ·
+            ${c.dnc} dnc
+          </td>
+          <td class="counts">${fmt(c.created_at)}</td>
+          <td>
+            ${c.status === "running"
+              ? `<button class="secondary" onclick="act(${c.id},'pause')">Pause</button>`
+              : `<button onclick="act(${c.id},'start')">Start</button>`}
+          </td>
+        </tr>
+      `).join("");
+    }
+    async function act(id, verb) {
+      await fetch(`/api/campaigns/${id}/${verb}`, { method: "POST" });
+      loadCampaigns();
+    }
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+
+    // ---- New campaign dialog ----
+    const dialog = document.getElementById("newDialog");
+    const questionsBox = document.getElementById("questions");
+    // Question presets — lets operators pick a canonical shape instead of
+    // hand-rolling choices every time. The answer_type is what gets stored
+    // in the DB; `choices` is the ordered enum the AI must match.
+    const QUESTION_PRESETS = {
+      right_track: {
+        label: "Right direction / Wrong track (3-pt)",
+        type: "multi",
+        choices: ["Right direction", "Wrong track", "Not sure"],
+        confirm: false,
+      },
+      top_issue: {
+        label: "Top issue priority (includes 'Something else')",
+        type: "multi",
+        choices: [
+          "The economy and cost of living",
+          "Immigration and border security",
+          "Healthcare",
+          "Crime and public safety",
+          "Foreign policy and national security",
+          "Something else",
+        ],
+        confirm: true,
+      },
+      approval_5pt: {
+        label: "Approval — 5-pt (strongly approve → unsure)",
+        type: "multi",
+        choices: ["Strongly approve", "Somewhat approve", "Somewhat disapprove",
+                  "Strongly disapprove", "Unsure / no opinion"],
+        confirm: true,
+      },
+      approval_4pt: {
+        label: "Approval — 4-pt (no unsure option)",
+        type: "multi",
+        choices: ["Strongly approve", "Somewhat approve",
+                  "Somewhat disapprove", "Strongly disapprove"],
+        confirm: true,
+      },
+      outlook_5pt: {
+        label: "Outlook — 5-pt (much better → much worse)",
+        type: "multi",
+        choices: ["Much better", "Somewhat better", "About the same",
+                  "Somewhat worse", "Much worse"],
+        confirm: true,
+      },
+      trust_4pt: {
+        label: "Trust / confidence — 4-pt",
+        type: "multi",
+        choices: ["A great deal", "A fair amount", "Not very much", "None at all"],
+        confirm: false,
+      },
+      likert_5pt: {
+        label: "Agree / disagree — Likert 5-pt",
+        type: "multi",
+        choices: ["Strongly agree", "Somewhat agree", "Neither agree nor disagree",
+                  "Somewhat disagree", "Strongly disagree"],
+        confirm: true,
+      },
+      yesno_unsure: {
+        label: "Yes / No / Unsure",
+        type: "multi",
+        choices: ["Yes", "No", "Unsure"],
+        confirm: false,
+      },
+      yesno: {
+        label: "Yes / No (strict)",
+        type: "yesno",
+        choices: null,
+        confirm: false,
+      },
+      scale_1_5: {
+        label: "Numeric scale 1–5",
+        type: "scale",
+        choices: null,
+        confirm: false,
+      },
+      open: {
+        label: "Open / free-form answer",
+        type: "open",
+        choices: null,
+        confirm: false,
+      },
+      custom: {
+        label: "Custom multi (enter your own choices)",
+        type: "multi",
+        choices: [],
+        confirm: true,
+      },
+    };
+
+    let qCounter = 0;
+
+    function addQuestionRow(prefill) {
+      qCounter += 1;
+      const row = document.createElement("div");
+      row.className = "qblock";
+      const presetOptions = Object.entries(QUESTION_PRESETS)
+        .map(([k, p]) => `<option value="${k}">${p.label}</option>`).join("");
+      row.innerHTML = `
+        <div class="head">
+          <span class="qnum">Q${qCounter}</span>
+          <input name="prompt_text" placeholder="Question text as the AI should ask it" required />
+          <button type="button" class="rm" title="Remove">×</button>
+        </div>
+        <div class="mini">
+          <label>
+            <span>Preset</span>
+            <select name="preset">${presetOptions}</select>
+          </label>
+          <label>
+            <span>Stored type</span>
+            <input name="answer_type" readonly tabindex="-1" />
+          </label>
+        </div>
+        <label style="margin-top:8px;">
+          <span>Choices <small style="color:var(--muted);">(one per line; ignored for yes/no, scale, open)</small></span>
+          <textarea name="choices" rows="4" placeholder="Right direction&#10;Wrong track&#10;Not sure"></textarea>
+        </label>
+        <div class="choices-hint"></div>
+        <label class="chk"><input type="checkbox" name="confirm" /> Read answer back to respondent before recording</label>
+      `;
+      questionsBox.appendChild(row);
+
+      const presetSel = row.querySelector('[name=preset]');
+      const typeInput = row.querySelector('[name=answer_type]');
+      const choicesTa = row.querySelector('[name=choices]');
+      const confirmChk = row.querySelector('[name=confirm]');
+      const hintEl = row.querySelector('.choices-hint');
+
+      function applyPreset() {
+        const preset = QUESTION_PRESETS[presetSel.value];
+        typeInput.value = preset.type;
+        if (preset.choices && preset.choices.length) {
+          choicesTa.value = preset.choices.join("\n");
+          choicesTa.disabled = preset.type !== "multi" || presetSel.value !== "custom";
+          // For presets with choices, disable editing; for "custom", keep editable.
+          choicesTa.disabled = presetSel.value !== "custom";
+        } else if (preset.type === "multi" && presetSel.value === "custom") {
+          choicesTa.value = "";
+          choicesTa.disabled = false;
+        } else {
+          choicesTa.value = "";
+          choicesTa.disabled = true;
+        }
+        confirmChk.checked = !!preset.confirm;
+
+        hintEl.textContent = {
+          "multi": "AI will submit ONE of the choices above verbatim.",
+          "yesno": "AI submits YES or NO only.",
+          "scale": "AI submits an integer 1–5.",
+          "open": "AI submits the respondent's full answer as text.",
+        }[preset.type] || "";
+      }
+
+      presetSel.addEventListener("change", applyPreset);
+      presetSel.value = "right_track";
+      applyPreset();
+
+      row.querySelector("button.rm").onclick = () => row.remove();
+
+      if (prefill) {
+        row.querySelector('[name=prompt_text]').value = prefill.prompt_text || "";
+        if (prefill.preset) { presetSel.value = prefill.preset; applyPreset(); }
+      }
+    }
+
+    async function refreshListPicker() {
+      const picker = document.getElementById("listPicker");
+      try {
+        const r = await fetch("/api/lists"); const { lists } = await r.json();
+        if (!lists.length) {
+          picker.innerHTML = `<div style="color:var(--muted);font-size:12px;">
+            No lists yet. <a href="/lists.html">Create one →</a></div>`;
+          return;
+        }
+        picker.innerHTML = lists.map(l => `
+          <label style="display:flex; align-items:center; gap:8px;
+                        padding:4px 0; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="list_id" value="${l.id}" />
+            <span style="flex:1;">${escapeHtml(l.name)}</span>
+            <span style="color:var(--muted); font-size:11px;">
+              ${l.voter_count} voters · M ${l.male_count} · F ${l.female_count}
+              ${l.other_count ? "· Other " + l.other_count : ""}
+            </span>
+          </label>`).join("");
+      } catch {
+        picker.innerHTML = `<div style="color:var(--bad);">Failed to load lists.</div>`;
+      }
+    }
+
+    async function fillDefaultCallerId() {
+      try {
+        const r = await fetch("/api/phone"); const j = await r.json();
+        const input = document.getElementById("callerIdInput");
+        if (input && !input.value) input.value = j.phone || "";
+      } catch {}
+    }
+
+    document.getElementById("newCampaign").onclick = async () => {
+      questionsBox.innerHTML = ""; qCounter = 0; addQuestionRow();
+      document.getElementById("callerIdInput").value = "";
+      await Promise.all([fillDefaultCallerId(), refreshListPicker()]);
+      dialog.showModal();
+    };
+    document.getElementById("addQ").onclick = () => addQuestionRow();
+    document.getElementById("cancelNew").onclick = () => dialog.close();
+    document.getElementById("newForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      const qs = Array.from(questionsBox.querySelectorAll(".qblock")).map(row => {
+        const prompt = row.querySelector('[name=prompt_text]').value.trim();
+        const type = row.querySelector('[name=answer_type]').value;
+        const choicesStr = row.querySelector('[name=choices]').value.trim();
+        const choices = type === "multi" && choicesStr
+          ? choicesStr.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+          : null;
+        return {
+          prompt_text: prompt,
+          answer_type: type,
+          choices,
+          confirm: row.querySelector('[name=confirm]').checked,
+        };
+      }).filter(q => q.prompt_text && q.answer_type);
+      const list_ids = Array.from(
+        document.querySelectorAll('#listPicker input[name=list_id]:checked')
+      ).map(el => Number(el.value));
+      const body = {
+        name: form.get("name"),
+        script_intro: form.get("script_intro"),
+        caller_id: form.get("caller_id") || null,
+        max_concurrent: Number(form.get("max_concurrent") || 2),
+        list_ids,
+        questions: qs,
+      };
+      await fetch("/api/campaigns", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(body),
+      });
+      dialog.close();
+      loadCampaigns();
+    };
+
+    loadPhone();
+    loadCampaigns();
+    // Light periodic refresh of the index — this IS the "no active call" view,
+    // so a 10-second heartbeat is cheap. Detail pages use SSE instead.
+    setInterval(loadCampaigns, 10000);
+  </script>
+</body>
+</html>

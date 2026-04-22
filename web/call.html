@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PulseCall — Call</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1117; --panel: #1a1d2e; --border: #2a2e44; --text: #e0e0e0;
+      --muted: #7d85a3; --accent: #4fb3ff; --accent-fade: #4fb3ff22;
+      --good: #53d294; --warn: #f5c518; --bad: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    header { padding: 20px 32px; border-bottom: 1px solid var(--border);
+             display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    header a { color: var(--accent); text-decoration: none; }
+    header h1 { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+    .live { padding: 3px 8px; border-radius: 4px; background: var(--accent-fade);
+            color: var(--accent); font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.05em; display: none; }
+    .live.on { display: inline-block; animation: pulse 2s infinite; }
+    @keyframes pulse { 50% { opacity: 0.4; } }
+    main { padding: 24px 32px; max-width: 900px; margin: 0 auto; }
+
+    .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px; margin-bottom: 20px; }
+    .meta .box { background: var(--panel); border: 1px solid var(--border);
+                 border-radius: 8px; padding: 12px 16px; }
+    .meta .box .k { color: var(--muted); font-size: 11px; text-transform: uppercase;
+                    letter-spacing: 0.05em; margin-bottom: 4px; }
+    .meta .box .v { font-weight: 500; }
+
+    .card { background: var(--panel); border: 1px solid var(--border);
+            border-radius: 8px; overflow: hidden; }
+    .card h2 { margin: 0; padding: 14px 20px; border-bottom: 1px solid var(--border);
+               font-size: 13px; font-weight: 600; color: var(--muted);
+               text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .qa { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .qa:last-child { border-bottom: 0; }
+    .qa .q { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+    .qa .a { font-size: 15px; font-weight: 500; }
+    .qa .a.skipped { color: var(--warn); font-weight: 400; font-style: italic; }
+    .qa.pending .a { color: var(--muted); font-weight: 400; font-style: italic; }
+
+    .banner { padding: 16px 20px; border-radius: 8px; margin-bottom: 20px;
+              font-weight: 500; display: none; }
+    .banner.dnc      { display: block; background: #3a1414; color: var(--bad);
+                       border: 1px solid var(--bad); }
+    .banner.completed{ display: block; background: #14362a; color: var(--good);
+                       border: 1px solid var(--good); }
+    .banner.declined { display: block; background: #3a2e14; color: var(--warn);
+                       border: 1px solid var(--warn); }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="javascript:history.back()">← Back</a>
+    <h1 id="title">Call</h1>
+    <span class="live" id="live">LIVE</span>
+  </header>
+  <main>
+    <div class="meta">
+      <div class="box"><div class="k">Respondent</div><div class="v" id="respondent">—</div></div>
+      <div class="box"><div class="k">Phone</div><div class="v" id="phone">—</div></div>
+      <div class="box"><div class="k">Campaign</div><div class="v" id="campaign">—</div></div>
+      <div class="box"><div class="k">Started</div><div class="v" id="started">—</div></div>
+      <div class="box"><div class="k">Outcome</div><div class="v" id="outcome">—</div></div>
+    </div>
+    <div class="banner" id="banner"></div>
+    <div class="card">
+      <h2>Question &amp; answer feed</h2>
+      <div id="feed"><div class="qa" style="color:var(--muted);">Waiting for call to start…</div></div>
+    </div>
+  </main>
+  <script>
+    const callId = new URLSearchParams(location.search).get("id");
+    if (!callId) location.href = "/";
+
+    const $ = (id) => document.getElementById(id);
+    const titleEl = $("title");
+    const respondentEl = $("respondent");
+    const phoneEl = $("phone");
+    const campaignEl = $("campaign");
+    const startedEl = $("started");
+    const outcomeEl = $("outcome");
+    const feedEl = $("feed");
+    const bannerEl = $("banner");
+    const liveEl = $("live");
+
+    const state = { questions: [], answers: {} };
+
+    function escapeHtml(s) {
+      return (s ?? "").toString().replace(/[&<>"']/g,
+        c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+
+    function renderFeed() {
+      if (!state.questions.length) {
+        feedEl.innerHTML = `<div class="qa" style="color:var(--muted);">
+          Waiting for call to start…</div>`;
+        return;
+      }
+      feedEl.innerHTML = state.questions.map(q => {
+        const ans = state.answers[q.id];
+        const pendingCls = ans ? "" : "pending";
+        const isSkipped = ans && (ans.value === "SKIPPED" || ans.skipped);
+        const aCls = isSkipped ? "a skipped" : "a";
+        const aText = ans ? escapeHtml(ans.value) : "—";
+        return `<div class="qa ${pendingCls}">
+          <div class="q">${q.ordinal}. ${escapeHtml(q.prompt_text)}</div>
+          <div class="${aCls}">${aText}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderSnapshot(snap) {
+      if (!snap.found) {
+        titleEl.textContent = `Call ${callId} (not found)`;
+        return;
+      }
+      titleEl.textContent = `Call ${snap.call.call_id.slice(0, 8)}…`;
+      const v = snap.voter || {};
+      respondentEl.textContent = [v.first_name, v.last_name].filter(Boolean).join(" ") || "—";
+      phoneEl.textContent = v.phone || "—";
+      campaignEl.textContent = snap.campaign?.name || "—";
+      startedEl.textContent = snap.call.started_at || "—";
+      outcomeEl.textContent = snap.call.outcome || (snap.call.ended_at ? "(no outcome)" : "in progress");
+      state.questions = snap.questions || [];
+      state.answers = {};
+      (snap.answers || []).forEach(a => { state.answers[a.question_id] = a; });
+      renderFeed();
+      if (snap.call.ended_at) {
+        markEnded(snap.call.outcome);
+      }
+    }
+
+    function markEnded(outcome) {
+      liveEl.classList.remove("on");
+      outcomeEl.textContent = outcome || "ended";
+      if (outcome === "dnc") {
+        bannerEl.className = "banner dnc";
+        bannerEl.textContent = "⚠ Respondent asked to be removed — added to DNC list.";
+      } else if (outcome === "completed") {
+        bannerEl.className = "banner completed";
+        bannerEl.textContent = "✓ Poll completed.";
+      }
+    }
+
+    const es = new EventSource(`/api/calls/${encodeURIComponent(callId)}/events`);
+    liveEl.classList.add("on");
+    es.addEventListener("snapshot", (e) => renderSnapshot(JSON.parse(e.data)));
+    es.addEventListener("answer", (e) => {
+      const a = JSON.parse(e.data);
+      state.answers[a.question_id] = { value: a.value, skipped: a.skipped };
+      renderFeed();
+    });
+    es.addEventListener("consented", () => {
+      if (bannerEl.className === "banner") { /* no-op */ }
+    });
+    es.addEventListener("declined", () => {
+      bannerEl.className = "banner declined";
+      bannerEl.textContent = "Respondent declined to participate.";
+    });
+    es.addEventListener("dnc", (e) => {
+      const d = JSON.parse(e.data);
+      bannerEl.className = "banner dnc";
+      bannerEl.textContent = `⚠ Respondent asked to be removed (${d.reason || "user_request"}). Added to DNC list.`;
+    });
+    es.addEventListener("ended", (e) => {
+      const d = JSON.parse(e.data);
+      markEnded(d.outcome);
+      es.close();
+    });
+    es.onerror = () => { liveEl.classList.remove("on"); };
+  </script>
+</body>
+</html>

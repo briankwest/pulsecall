@@ -1,0 +1,27 @@
+# Runtime state
+pulsecall.db
+pulsecall.db-shm
+pulsecall.db-wal
+calls/*.json
+
+# Local env — .env.example is the committed template
+.env
+.env.local
+.env~
+*.env~
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

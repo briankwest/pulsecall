@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PulseCall — List</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg:#0f1117; --panel:#1a1d2e; --border:#2a2e44; --text:#e0e0e0;
+      --muted:#7d85a3; --accent:#4fb3ff; --accent-fade:#4fb3ff22;
+      --good:#53d294; --warn:#f5c518; --bad:#ff6b6b;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:20px 32px; border-bottom:1px solid var(--border);
+             display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+    header a { color:var(--accent); text-decoration:none; }
+    header h1 { margin:0; font-size:20px; }
+    main { padding:24px 32px; max-width:1200px; margin:0 auto; }
+    .bar { display:flex; gap:12px; margin-bottom:20px; align-items:center; flex-wrap:wrap; }
+    button, a.btn {
+      background:var(--accent); color:#0a0d14; border:0;
+      padding:8px 14px; border-radius:6px; font-weight:600; cursor:pointer;
+      text-decoration:none; font-size:13px;
+    }
+    button.secondary, a.btn.secondary {
+      background:var(--panel); color:var(--text); border:1px solid var(--border);
+    }
+    button.danger { background:transparent; color:var(--bad);
+                    border:1px solid var(--bad); font-weight:500; }
+    select, input[type=text], input[type=tel] {
+      padding:6px 10px; background:var(--bg); color:var(--text);
+      border:1px solid var(--border); border-radius:6px; font:inherit;
+    }
+    table { width:100%; border-collapse:collapse; background:var(--panel);
+            border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    th, td { padding:8px 12px; text-align:left; border-bottom:1px solid var(--border); }
+    th { background:#151827; color:var(--muted); font-size:11px; font-weight:600;
+         text-transform:uppercase; letter-spacing:0.05em; }
+    tr:last-child td { border-bottom:0; }
+    tr:hover td { background:#1f2338; }
+    td input, td select { width:100%; background:transparent; border:1px solid transparent;
+      color:var(--text); padding:4px 6px; border-radius:4px; font:inherit; }
+    td input:focus, td select:focus { border-color:var(--border); background:var(--bg); outline:none; }
+    td input.dirty, td select.dirty { border-color:var(--warn); }
+    .chip { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; }
+    .chip.M { background:#14253a; color:#6bb6ff; }
+    .chip.F { background:#3a1438; color:#ff8ad6; }
+    .chip.NB { background:#2a2e44; color:var(--muted); }
+    .chip.U { background:#2a2e44; color:var(--muted); }
+
+    dialog { background:var(--panel); color:var(--text);
+             border:1px solid var(--border); border-radius:10px; padding:20px;
+             width:min(650px,92vw); }
+    dialog::backdrop { background:rgba(0,0,0,0.6); }
+    dialog h2 { margin:0 0 12px 0; }
+    dialog label { display:block; margin-bottom:12px; font-size:13px; }
+    dialog label span { display:block; color:var(--muted); margin-bottom:4px; }
+    dialog textarea { width:100%; padding:8px 10px; background:var(--bg);
+      color:var(--text); border:1px solid var(--border); border-radius:6px;
+      font:12px/1.4 monospace; min-height:180px; resize:vertical; }
+
+    .hint { color:var(--muted); font-size:12px; }
+    .saved { color:var(--good); font-size:11px; margin-left:6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/lists.html">← Voter lists</a>
+    <h1 id="title">List</h1>
+    <span class="hint" id="counts"></span>
+    <div style="margin-left:auto; display:flex; gap:8px;">
+      <label>Filter: <select id="filterGender">
+        <option value="">all</option>
+        <option value="M">male</option>
+        <option value="F">female</option>
+        <option value="NB">non-binary</option>
+        <option value="U">unknown</option>
+      </select></label>
+      <button id="uploadBtn">+ Upload voters</button>
+    </div>
+  </header>
+  <main>
+    <div class="bar" id="campaignsRow"></div>
+
+    <table>
+      <thead><tr>
+        <th style="width:160px;">Phone</th>
+        <th>First</th><th>Last</th>
+        <th style="width:80px;">Gender</th>
+        <th style="width:90px;">Age band</th>
+        <th style="width:80px;">Party</th>
+        <th style="width:90px;">ZIP</th>
+        <th style="width:110px;">Actions</th>
+      </tr></thead>
+      <tbody id="tbody"><tr><td colspan="8" class="hint">Loading…</td></tr></tbody>
+      <tfoot>
+        <tr style="background:#151827;">
+          <td><input id="newPhone" type="tel" placeholder="+15551234567" /></td>
+          <td><input id="newFirst" type="text" placeholder="First" /></td>
+          <td><input id="newLast" type="text" placeholder="Last" /></td>
+          <td><select id="newGender">
+            <option value="">—</option>
+            <option value="M">M</option><option value="F">F</option>
+            <option value="NB">NB</option><option value="U">U</option>
+          </select></td>
+          <td><select id="newAge">
+            <option value="">—</option>
+            <option>18-24</option><option>25-34</option><option>35-44</option>
+            <option>45-54</option><option>55-64</option><option>65+</option>
+          </select></td>
+          <td><select id="newParty">
+            <option value="">—</option>
+            <option>DEM</option><option>REP</option><option>IND</option><option>OTHER</option>
+          </select></td>
+          <td><input id="newZip" type="text" placeholder="ZIP" /></td>
+          <td><button id="addRow">Add</button></td>
+        </tr>
+      </tfoot>
+    </table>
+  </main>
+
+  <dialog id="upDialog">
+    <h2>Upload voters (CSV)</h2>
+    <p class="hint" style="margin:0 0 12px 0;">
+      One voter per line. Headers optional; if omitted the order is:
+      <code>phone, first_name, last_name, zip_code, gender, age_band, party</code>.
+      DNC-listed numbers are skipped on insert.
+    </p>
+    <label><span>CSV</span>
+      <textarea id="csvText" placeholder="phone,first_name,last_name,gender,age_band,party
++15551234567,Jane,Doe,F,35-44,IND
++15559876543,John,Smith,M,45-54,DEM"></textarea>
+    </label>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" class="secondary" id="cancelUp">Cancel</button>
+      <button type="button" id="doUp">Upload</button>
+    </div>
+  </dialog>
+
+  <script>
+    const id = new URLSearchParams(location.search).get("id");
+    if (!id) location.href = "/lists.html";
+
+    const tbody = document.getElementById("tbody");
+    const titleEl = document.getElementById("title");
+    const countsEl = document.getElementById("counts");
+    const campaignsRow = document.getElementById("campaignsRow");
+    const filterGender = document.getElementById("filterGender");
+
+    function escapeHtml(s) {
+      return (s ?? "").toString().replace(/[&<>"']/g,
+        c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+
+    async function load() {
+      const r = await fetch(`/api/lists/${id}`);
+      if (!r.ok) { tbody.innerHTML = `<tr><td colspan="8" class="hint">List not found.</td></tr>`; return; }
+      const { list, voters, campaigns } = await r.json();
+
+      titleEl.textContent = list.name;
+      countsEl.textContent = `${voters.length} voters` +
+        (list.description ? ` · ${list.description}` : "");
+
+      // Campaigns using this list
+      campaignsRow.innerHTML = campaigns.length
+        ? `<div class="hint">In use by: ` + campaigns.map(c =>
+            `<a href="/campaign.html?id=${c.id}">${escapeHtml(c.name)}</a>`
+          ).join(", ") + `</div>`
+        : `<div class="hint">Not linked to any campaign yet.</div>`;
+
+      const wantedGender = filterGender.value;
+      const filtered = wantedGender ? voters.filter(v => v.gender === wantedGender) : voters;
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="hint">No voters match that filter.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(v => {
+        const g = v.gender || "";
+        return `<tr data-id="${v.id}">
+          <td><input name="phone" value="${escapeHtml(v.phone)}" /></td>
+          <td><input name="first_name" value="${escapeHtml(v.first_name||'')}" /></td>
+          <td><input name="last_name"  value="${escapeHtml(v.last_name||'')}" /></td>
+          <td><select name="gender">
+            ${["","M","F","NB","U"].map(x => `<option value="${x}" ${x===g?"selected":""}>${x||"—"}</option>`).join("")}
+          </select></td>
+          <td><select name="age_band">
+            ${["","18-24","25-34","35-44","45-54","55-64","65+"].map(x=>`<option value="${x}" ${x===(v.age_band||"")?"selected":""}>${x||"—"}</option>`).join("")}
+          </select></td>
+          <td><select name="party">
+            ${["","DEM","REP","IND","OTHER"].map(x=>`<option value="${x}" ${x===(v.party||"")?"selected":""}>${x||"—"}</option>`).join("")}
+          </select></td>
+          <td><input name="zip_code" value="${escapeHtml(v.zip_code||'')}" /></td>
+          <td>
+            <button class="secondary" data-action="save">Save</button>
+            <button class="danger"    data-action="delete" title="Delete">×</button>
+          </td>
+        </tr>`;
+      }).join("");
+
+      // Mark dirty-on-change
+      tbody.querySelectorAll("tr").forEach(tr => {
+        tr.querySelectorAll("input,select").forEach(el => {
+          el.addEventListener("input", () => el.classList.add("dirty"));
+          el.addEventListener("change", () => el.classList.add("dirty"));
+        });
+        tr.querySelector('[data-action=save]').onclick  = () => saveRow(tr);
+        tr.querySelector('[data-action=delete]').onclick = () => deleteRow(tr);
+      });
+    }
+
+    async function saveRow(tr) {
+      const id = Number(tr.dataset.id);
+      const body = {};
+      tr.querySelectorAll("[name]").forEach(el => {
+        body[el.name] = el.value.trim() || null;
+      });
+      const r = await fetch(`/api/voters/${id}`, {
+        method:"PATCH", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(body),
+      });
+      if (r.ok) {
+        tr.querySelectorAll(".dirty").forEach(el => el.classList.remove("dirty"));
+        const saved = document.createElement("span");
+        saved.className = "saved"; saved.textContent = "saved";
+        tr.querySelector("td:last-child").appendChild(saved);
+        setTimeout(() => saved.remove(), 1500);
+      } else {
+        alert("save failed");
+      }
+    }
+    async function deleteRow(tr) {
+      if (!confirm("Delete this voter?")) return;
+      const id = Number(tr.dataset.id);
+      const r = await fetch(`/api/voters/${id}`, { method:"DELETE" });
+      if (r.ok) tr.remove();
+    }
+
+    document.getElementById("addRow").onclick = async () => {
+      const body = {
+        phone:      document.getElementById("newPhone").value.trim(),
+        first_name: document.getElementById("newFirst").value.trim() || null,
+        last_name:  document.getElementById("newLast").value.trim() || null,
+        gender:     document.getElementById("newGender").value || null,
+        age_band:   document.getElementById("newAge").value || null,
+        party:      document.getElementById("newParty").value || null,
+        zip_code:   document.getElementById("newZip").value.trim() || null,
+      };
+      if (!body.phone) { alert("phone required"); return; }
+      const r = await fetch(`/api/lists/${id}/voters`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ voters: [body] }),
+      });
+      if (r.ok) {
+        ["newPhone","newFirst","newLast","newZip"].forEach(k=>document.getElementById(k).value="");
+        ["newGender","newAge","newParty"].forEach(k=>document.getElementById(k).value="");
+        load();
+      } else {
+        alert("add failed");
+      }
+    };
+
+    filterGender.onchange = load;
+
+    const upDialog = document.getElementById("upDialog");
+    document.getElementById("uploadBtn").onclick = () => upDialog.showModal();
+    document.getElementById("cancelUp").onclick = () => upDialog.close();
+    document.getElementById("doUp").onclick = async () => {
+      const csv = document.getElementById("csvText").value;
+      const r = await fetch(`/api/lists/${id}/voters`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ csv }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        alert(`Added ${j.added}. Skipped ${j.skipped}.`);
+        upDialog.close();
+        document.getElementById("csvText").value = "";
+        load();
+      } else {
+        alert("upload failed: " + await r.text());
+      }
+    };
+
+    load();
+  </script>
+</body>
+</html>

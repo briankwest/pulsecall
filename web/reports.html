@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PulseCall — Reports</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg:#0f1117; --panel:#1a1d2e; --border:#2a2e44; --text:#e0e0e0;
+      --muted:#7d85a3; --accent:#4fb3ff; --accent-fade:#4fb3ff22;
+      --good:#53d294; --warn:#f5c518; --bad:#ff6b6b;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:24px 32px; border-bottom:1px solid var(--border);
+             display:flex; align-items:center; gap:20px; }
+    header a { color:var(--accent); text-decoration:none; }
+    header h1 { margin:0; font-size:22px; }
+    main { padding:24px 32px; max-width:1280px; margin:0 auto; }
+
+    .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
+             gap:12px; margin-bottom:24px; }
+    .stat { background:var(--panel); border:1px solid var(--border); border-radius:8px;
+            padding:14px 16px; }
+    .stat .n  { font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
+    .stat .k  { color:var(--muted); font-size:11px; text-transform:uppercase;
+                letter-spacing:0.05em; margin-bottom:4px; }
+    .stat .sub { color:var(--muted); font-size:11px; margin-top:2px; }
+
+    table { width:100%; border-collapse:collapse; background:var(--panel);
+            border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    th, td { padding:10px 16px; text-align:left; border-bottom:1px solid var(--border); }
+    th { background:#151827; color:var(--muted); font-size:11px; font-weight:600;
+         text-transform:uppercase; letter-spacing:0.05em; }
+    tr:last-child td { border-bottom:0; }
+    tr:hover td { background:#1f2338; }
+    .status { display:inline-block; padding:2px 8px; border-radius:4px;
+              font-size:11px; font-weight:600; text-transform:uppercase; }
+    .status.draft     { background:#2a2e44; color:var(--muted); }
+    .status.running   { background:var(--accent-fade); color:var(--accent); }
+    .status.paused    { background:#3a2e14; color:var(--warn); }
+    .status.completed { background:#14362a; color:var(--good); }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+
+    .progress-bar { position:relative; height:8px; background:var(--bg);
+                    border-radius:4px; overflow:hidden; margin-top:4px; }
+    .progress-fill { position:absolute; top:0; left:0; height:100%;
+                     background:var(--good); }
+    .progress-fill.dnc    { background:var(--bad); }
+    .progress-fill.failed { background:var(--warn); }
+    .progress-row { display:flex; gap:0; height:8px; border-radius:4px;
+                    overflow:hidden; background:var(--bg); margin-top:4px; }
+    .progress-row > span { display:block; height:100%; }
+    .tabular { font-variant-numeric:tabular-nums; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Dashboard</a>
+    <h1>Reports</h1>
+    <a href="/lists.html" style="margin-left:auto;">Voter lists →</a>
+  </header>
+  <main>
+    <div class="stats" id="stats"></div>
+
+    <h2 style="margin:0 0 12px 0; font-size:14px; color:var(--muted);
+               text-transform:uppercase; letter-spacing:0.05em;">Per campaign</h2>
+    <table>
+      <thead><tr>
+        <th>Campaign</th>
+        <th>Status</th>
+        <th>Voters</th>
+        <th style="min-width:220px;">Completion</th>
+        <th>Answers</th>
+        <th>Export</th>
+      </tr></thead>
+      <tbody id="tbody"><tr><td colspan="6" style="color:var(--muted);">Loading…</td></tr></tbody>
+    </table>
+  </main>
+  <script>
+    function escapeHtml(s) {
+      return (s ?? "").toString().replace(/[&<>"']/g,
+        c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+    function pct(n, d) { return d > 0 ? Math.round(100*n/d) : 0; }
+
+    async function load() {
+      const r = await fetch("/api/reports/overview");
+      const { totals, campaigns } = await r.json();
+
+      const complPct = pct(totals.n_completed, totals.n_calls);
+      const dncPct   = pct(totals.n_dnc,       totals.n_calls);
+
+      document.getElementById("stats").innerHTML = `
+        <div class="stat"><div class="k">Campaigns</div><div class="n">${totals.n_campaigns}</div></div>
+        <div class="stat"><div class="k">Voter lists</div><div class="n">${totals.n_lists}</div></div>
+        <div class="stat"><div class="k">Voters (all lists)</div><div class="n">${totals.n_voters}</div></div>
+        <div class="stat"><div class="k">Total calls</div><div class="n">${totals.n_calls}</div></div>
+        <div class="stat"><div class="k">Completed</div><div class="n">${totals.n_completed}</div>
+          <div class="sub">${complPct}% of calls</div></div>
+        <div class="stat"><div class="k">DNC during call</div><div class="n">${totals.n_dnc}</div>
+          <div class="sub">${dncPct}% of calls</div></div>
+        <div class="stat"><div class="k">No-answer / failed</div>
+          <div class="n">${totals.n_no_answer + totals.n_failed}</div></div>
+        <div class="stat"><div class="k">Answers recorded</div><div class="n">${totals.n_answers}</div></div>
+        <div class="stat"><div class="k">DNC registry (global)</div><div class="n">${totals.n_dnc_global}</div></div>
+      `;
+
+      const tbody = document.getElementById("tbody");
+      if (!campaigns.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);">No campaigns yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = campaigns.map(c => {
+        const total = c.total_voters || 0;
+        const done  = c.completed || 0;
+        const dnc   = c.dnc || 0;
+        const failed = c.failed || 0;
+        const donePct   = total ? Math.round(100*done/total)   : 0;
+        const dncPct    = total ? Math.round(100*dnc/total)    : 0;
+        const failedPct = total ? Math.round(100*failed/total) : 0;
+        return `<tr>
+          <td><a href="/campaign.html?id=${c.id}">${escapeHtml(c.name)}</a></td>
+          <td><span class="status ${c.status}">${c.status}</span></td>
+          <td class="tabular">${total}</td>
+          <td>
+            <div style="color:var(--muted); font-size:11px;" class="tabular">
+              ${done} done · ${dnc} dnc · ${failed} failed
+            </div>
+            <div class="progress-row" title="${donePct}% complete / ${dncPct}% dnc / ${failedPct}% failed">
+              <span style="width:${donePct}%;   background:var(--good);"></span>
+              <span style="width:${dncPct}%;    background:var(--bad);"></span>
+              <span style="width:${failedPct}%; background:var(--warn);"></span>
+            </div>
+          </td>
+          <td class="tabular">${c.answer_count || 0}</td>
+          <td>
+            <a href="/api/campaigns/${c.id}/export/answers.csv" title="Answers CSV">answers</a> ·
+            <a href="/api/campaigns/${c.id}/export/voters.csv"  title="Voter roster CSV">voters</a>
+          </td>
+        </tr>`;
+      }).join("");
+    }
+    load();
+    // Lightweight refresh — this page shows aggregates, not live events.
+    setInterval(load, 15000);
+  </script>
+</body>
+</html>

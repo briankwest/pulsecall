@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PulseCall — Campaign</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg:#0f1117; --panel:#1a1d2e; --border:#2a2e44; --text:#e0e0e0;
+      --muted:#7d85a3; --accent:#4fb3ff; --accent-fade:#4fb3ff22;
+      --good:#53d294; --warn:#f5c518; --bad:#ff6b6b;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:20px 32px; border-bottom:1px solid var(--border);
+             display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+    header a { color:var(--accent); text-decoration:none; }
+    header h1 { margin:0; font-size:20px; }
+    .live { padding:3px 8px; border-radius:4px; background:var(--accent-fade);
+            color:var(--accent); font-size:11px; font-weight:600;
+            text-transform:uppercase; letter-spacing:0.05em; display:none; }
+    .live.on { display:inline-block; animation:pulse 2s infinite; }
+    @keyframes pulse { 50% { opacity:0.5; } }
+    .status { display:inline-block; padding:3px 8px; border-radius:4px;
+              font-size:11px; font-weight:600; text-transform:uppercase; }
+    .status.draft     { background:#2a2e44; color:var(--muted); }
+    .status.running   { background:var(--accent-fade); color:var(--accent); }
+    .status.paused    { background:#3a2e14; color:var(--warn); }
+    .status.completed { background:#14362a; color:var(--good); }
+    main { padding:24px 32px; max-width:1280px; margin:0 auto; }
+    .bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
+    button, a.btn {
+      background:var(--accent); color:#0a0d14; border:0;
+      padding:7px 12px; border-radius:6px; font-weight:600; cursor:pointer;
+      text-decoration:none; font-size:13px;
+    }
+    button.secondary, a.btn.secondary {
+      background:var(--panel); color:var(--text); border:1px solid var(--border);
+    }
+    button.danger { background:transparent; color:var(--bad); border:1px solid var(--bad);
+                    font-weight:500; padding:7px 12px; border-radius:6px; font-size:13px;
+                    cursor:pointer; }
+    button.danger:hover { background:#3a1414; }
+    .grid { display:grid; grid-template-columns:1.2fr 1fr; gap:24px; }
+    @media (max-width:960px) { .grid { grid-template-columns:1fr; } }
+    .card { background:var(--panel); border:1px solid var(--border); border-radius:8px;
+            overflow:hidden; }
+    .card h2 { margin:0; padding:14px 20px; border-bottom:1px solid var(--border);
+               font-size:13px; font-weight:600; color:var(--muted);
+               text-transform:uppercase; letter-spacing:0.05em;
+               display:flex; justify-content:space-between; align-items:center; }
+    .card h2 .n { color:var(--text); font-weight:500; }
+
+    .lists-row { padding:12px 20px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .lists-row .chip { background:#14253a; color:#6bb6ff; padding:4px 10px;
+      border-radius:12px; font-size:12px; }
+
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:8px 14px; text-align:left; border-bottom:1px solid var(--border);
+             font-size:13px; }
+    th { background:#151827; color:var(--muted); font-size:11px; font-weight:600;
+         text-transform:uppercase; letter-spacing:0.05em; }
+    tr:last-child td { border-bottom:0; }
+    .vstatus { display:inline-block; padding:2px 8px; border-radius:4px;
+               font-size:11px; font-weight:600; text-transform:uppercase; }
+    .vstatus.pending   { background:#2a2e44; color:var(--muted); }
+    .vstatus.calling   { background:var(--accent-fade); color:var(--accent); }
+    .vstatus.completed { background:#14362a; color:var(--good); }
+    .vstatus.dnc, .vstatus.optout { background:#3a1414; color:var(--bad); }
+    .vstatus.failed    { background:#3a2e14; color:var(--warn); }
+
+    .q { padding:14px 20px; border-bottom:1px solid var(--border); }
+    .q:last-child { border-bottom:0; }
+    .q .prompt { font-weight:500; margin-bottom:6px; }
+    .q .total { color:var(--muted); font-size:12px; margin-bottom:8px; }
+    .bar-row { display:grid; grid-template-columns:160px 1fr 60px 50px;
+               gap:8px; align-items:center; font-size:12px; margin-top:4px; }
+    .bar-row .label { color:var(--muted); overflow:hidden; white-space:nowrap;
+                      text-overflow:ellipsis; }
+    .bar-track { height:8px; background:var(--bg); border-radius:4px; overflow:hidden; }
+    .bar-fill { height:100%; background:var(--accent); }
+    .bar-row .pct { text-align:right; color:var(--text); font-variant-numeric:tabular-nums; }
+    .bar-row .count { text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+    dialog { background:var(--panel); color:var(--text);
+             border:1px solid var(--border); border-radius:10px; padding:20px;
+             width:min(650px,92vw); }
+    dialog::backdrop { background:rgba(0,0,0,0.6); }
+    dialog h2 { margin:0 0 16px 0; }
+    dialog label { display:block; margin-bottom:12px; font-size:13px; }
+    dialog label span { display:block; color:var(--muted); margin-bottom:4px; }
+    dialog input, dialog textarea {
+      width:100%; padding:8px 10px; background:var(--bg); color:var(--text);
+      border:1px solid var(--border); border-radius:6px; font:inherit;
+    }
+    .lockedNote { color:var(--warn); font-size:12px; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Campaigns</a>
+    <h1 id="title">Campaign</h1>
+    <span class="live" id="live">LIVE</span>
+    <span id="statusBadge" class="status"></span>
+    <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="secondary" id="editBtn">Edit</button>
+      <a class="btn secondary" id="exportAnswers">Export answers CSV</a>
+      <a class="btn secondary" id="exportVoters">Export voters CSV</a>
+      <button class="secondary" id="retryBtn" style="display:none;">Retry failed</button>
+      <button class="danger"    id="resetBtn" style="display:none;">Reset (testing)</button>
+      <button id="actionBtn">Start</button>
+    </div>
+  </header>
+  <main>
+    <div class="card" style="margin-bottom:20px;">
+      <h2>Voter lists <span class="n" id="listCount"></span></h2>
+      <div class="lists-row" id="listsRow"><span class="n" style="color:var(--muted);">—</span></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Voters <span class="n" id="voterCount"></span></h2>
+        <div style="overflow:auto; max-height:640px;">
+          <table>
+            <thead><tr>
+              <th>Name</th><th>Phone</th><th>List</th><th>Demo</th>
+              <th>Status</th><th>Last call</th>
+            </tr></thead>
+            <tbody id="voters"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Results <span class="n" id="resCount"></span></h2>
+        <div id="results"></div>
+      </div>
+    </div>
+  </main>
+
+  <dialog id="editDialog">
+    <h2>Edit campaign</h2>
+    <form id="editForm">
+      <label><span>Name</span><input name="name" required /></label>
+      <label><span>Consent / intro script</span><textarea name="script_intro" rows="3" required></textarea></label>
+      <label><span>Caller ID</span><input name="caller_id" /></label>
+      <label><span>Max concurrent calls</span>
+        <input type="number" name="max_concurrent" min="1" max="10" /></label>
+      <label><span>Voter lists</span>
+        <div id="editLists" style="border:1px solid var(--border); border-radius:6px;
+             padding:8px; max-height:140px; overflow:auto; background:var(--bg);"></div>
+      </label>
+      <div class="lockedNote" id="lockedNote" style="display:none;">
+        Questions are locked — editing allowed only while the campaign is in draft status.
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+        <button type="button" class="secondary" id="cancelEdit">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const id = new URLSearchParams(location.search).get("id");
+    if (!id) location.href = "/";
+
+    const $ = (x) => document.getElementById(x);
+    function escapeHtml(s) {
+      return (s ?? "").toString().replace(/[&<>"']/g,
+        c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+    function statusClass(s) { return s || "pending"; }
+
+    $("exportAnswers").href = `/api/campaigns/${id}/export/answers.csv`;
+    $("exportVoters").href  = `/api/campaigns/${id}/export/voters.csv`;
+
+    let currentCampaign = null;
+
+    async function load() {
+      const r = await fetch(`/api/campaigns/${id}`);
+      if (!r.ok) { $("title").textContent = "not found"; return; }
+      const data = await r.json();
+      currentCampaign = data.campaign;
+      renderSnapshot(data);
+    }
+
+    function renderSnapshot(data) {
+      if (data.campaign) {
+        $("title").textContent = data.campaign.name;
+        $("statusBadge").textContent = data.campaign.status;
+        $("statusBadge").className = `status ${data.campaign.status}`;
+        const st = data.campaign.status;
+        const bt = $("actionBtn");
+        const retry = $("retryBtn");
+        const reset = $("resetBtn");
+        if (st === "running") {
+          bt.textContent = "Pause"; bt.className = "secondary"; bt.style.display = "";
+          retry.style.display = "none";
+        } else if (st === "paused") {
+          bt.textContent = "Resume"; bt.className = ""; bt.style.display = "";
+          retry.style.display = (data.voters || []).some(v => v.status === "failed")
+            ? "" : "none";
+        } else if (st === "completed") {
+          bt.style.display = "none";                    // no raw Start on completed
+          const hasFailed = (data.voters || []).some(v => v.status === "failed");
+          retry.style.display = hasFailed ? "" : "none";
+        } else {                                        // draft
+          bt.textContent = "Start"; bt.className = ""; bt.style.display = "";
+          retry.style.display = "none";
+        }
+        // Reset is always available (dev-only action).
+        reset.style.display = "";
+      }
+      if (data.lists) renderLists(data.lists);
+      if (data.voters) renderVoters(data.voters);
+      if (data.results) renderResults(data.results);
+    }
+
+    function renderLists(lists) {
+      $("listCount").textContent = lists.length + " linked";
+      const row = $("listsRow");
+      if (!lists.length) {
+        row.innerHTML = `<span style="color:var(--muted);">
+          No lists linked. <button class="secondary" onclick="openEdit()">Add a list</button></span>`;
+        return;
+      }
+      row.innerHTML = lists.map(l => `<a href="/list.html?id=${l.id}" class="chip">${escapeHtml(l.name)}</a>`).join("");
+    }
+
+    function renderVoters(voters) {
+      $("voterCount").textContent = voters.length;
+      const t = $("voters");
+      if (!voters.length) {
+        t.innerHTML = `<tr><td colspan="6" style="color:var(--muted);padding:20px;">
+          No voters yet — link a list from the Edit dialog.</td></tr>`;
+        return;
+      }
+      t.innerHTML = voters.map(v => {
+        const demo = [
+          v.gender ? v.gender : "",
+          v.age_band ? v.age_band : "",
+          v.party ? v.party : "",
+        ].filter(Boolean).join(" · ");
+        return `<tr>
+          <td>${escapeHtml([v.first_name,v.last_name].filter(Boolean).join(" ") || "—")}</td>
+          <td>${escapeHtml(v.phone)}</td>
+          <td style="color:var(--muted);">${escapeHtml(v.list_name || "")}</td>
+          <td style="color:var(--muted);">${escapeHtml(demo)}</td>
+          <td><span class="vstatus ${statusClass(v.status)}">${v.status}</span></td>
+          <td>${v.last_call_id
+            ? `<a href="/call.html?id=${encodeURIComponent(v.last_call_id)}">view</a>`
+            : "—"}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    function renderResults(results) {
+      const totalAnswers = (results?.questions || [])
+        .reduce((s,q) => s + (q.total_responses||0), 0);
+      $("resCount").textContent = totalAnswers + " answers";
+      const box = $("results");
+      if (!results?.questions?.length) {
+        box.innerHTML = `<div class="q" style="color:var(--muted);">No questions configured.</div>`;
+        return;
+      }
+      box.innerHTML = results.questions.map(q => {
+        const total = q.total_responses || 0;
+        const bars = total === 0
+          ? `<div style="color:var(--muted); font-size:12px;">No responses yet.</div>`
+          : q.distribution.map(d => `
+              <div class="bar-row">
+                <span class="label" title="${escapeHtml(d.value)}">${escapeHtml(d.value)}</span>
+                <div class="bar-track"><div class="bar-fill" style="width:${d.percent}%"></div></div>
+                <span class="pct">${d.percent}%</span>
+                <span class="count">${d.count}</span>
+              </div>`).join("");
+        return `<div class="q">
+          <div class="prompt">${q.ordinal}. ${escapeHtml(q.prompt_text)}</div>
+          <div class="total">${total} responses</div>
+          ${bars}
+        </div>`;
+      }).join("");
+    }
+
+    $("actionBtn").onclick = async () => {
+      const verb = currentCampaign?.status === "running" ? "pause" : "start";
+      const r = await fetch(`/api/campaigns/${id}/${verb}`, { method: "POST" });
+      if (!r.ok) {
+        const msg = await r.text().catch(() => "");
+        alert(`${verb} failed: ${msg || r.status}`);
+      }
+      load();
+    };
+
+    $("retryBtn").onclick = async () => {
+      const r = await fetch(`/api/campaigns/${id}/retry-failed`, { method: "POST" });
+      if (!r.ok) {
+        alert("Retry failed: " + await r.text().catch(() => r.status));
+      } else {
+        const j = await r.json();
+        if (j.reset === 0) {
+          alert("Nothing to retry — no voters are in 'failed' or 'calling' state.");
+        }
+      }
+      load();
+    };
+
+    $("resetBtn").onclick = async () => {
+      if (!confirm(
+        "Reset this campaign?\n\n" +
+        "This will:\n" +
+        " • delete every call record and answer for this campaign\n" +
+        " • flip all non-DNC voters back to 'pending'\n" +
+        " • set the campaign status to 'draft'\n\n" +
+        "Only use this for testing. Existing DNC entries are kept.")) return;
+      const r = await fetch(`/api/campaigns/${id}/reset`, { method: "POST" });
+      if (r.ok) {
+        const j = await r.json();
+        alert(
+          `Reset complete.\n` +
+          `Voters reset: ${j.voters_reset}\n` +
+          `Voters kept on DNC: ${j.voters_dnc}\n` +
+          `Calls deleted: ${j.calls_deleted}\n` +
+          `Answers deleted: ${j.answers_deleted}`
+        );
+      } else {
+        alert("Reset failed: " + await r.text().catch(() => r.status));
+      }
+      load();
+    };
+
+    // ---- Edit dialog ----
+    const editDialog = $("editDialog");
+    window.openEdit = async () => {
+      const [campR, listsR] = await Promise.all([
+        fetch(`/api/campaigns/${id}`).then(r => r.json()),
+        fetch(`/api/lists`).then(r => r.json()),
+      ]);
+      const form = $("editForm");
+      form.name.value = campR.campaign.name;
+      form.script_intro.value = campR.campaign.script_intro;
+      form.caller_id.value = campR.campaign.caller_id || "";
+      form.max_concurrent.value = campR.campaign.max_concurrent || 2;
+      const selected = new Set((campR.lists || []).map(l => l.id));
+      $("editLists").innerHTML = listsR.lists.length
+        ? listsR.lists.map(l => `
+            <label style="display:flex; align-items:center; gap:8px;
+                          padding:4px 0; font-size:13px;">
+              <input type="checkbox" name="list_id" value="${l.id}"
+                     ${selected.has(l.id) ? "checked" : ""} />
+              <span style="flex:1;">${escapeHtml(l.name)}</span>
+              <span style="color:var(--muted); font-size:11px;">
+                ${l.voter_count} voters · M${l.male_count} F${l.female_count}
+              </span>
+            </label>`).join("")
+        : `<div style="color:var(--muted); font-size:12px;">
+             No lists. <a href="/lists.html">Create one →</a></div>`;
+      $("lockedNote").style.display = campR.campaign.status === "draft" ? "none" : "block";
+      editDialog.showModal();
+    };
+    $("editBtn").onclick = openEdit;
+    $("cancelEdit").onclick = () => editDialog.close();
+    $("editForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      const list_ids = Array.from(
+        document.querySelectorAll('#editLists input[name=list_id]:checked')
+      ).map(el => Number(el.value));
+      const body = {
+        name: form.get("name"),
+        script_intro: form.get("script_intro"),
+        caller_id: form.get("caller_id") || null,
+        max_concurrent: Number(form.get("max_concurrent") || 2),
+        list_ids,
+      };
+      const r = await fetch(`/api/campaigns/${id}`, {
+        method: "PATCH", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(body),
+      });
+      if (r.ok) { editDialog.close(); load(); }
+      else alert("save failed: " + await r.text());
+    };
+
+    // ---- Live SSE ----
+    const es = new EventSource(`/api/campaigns/${id}/events`);
+    $("live").classList.add("on");
+    es.addEventListener("snapshot", (e) => renderSnapshot(JSON.parse(e.data)));
+    es.addEventListener("dial_placed",     () => load());
+    es.addEventListener("voter_dnc",       () => load());
+    es.addEventListener("dial_failed",     () => load());
+    es.addEventListener("call_ended",      () => load());
+    es.addEventListener("voter_declined",  () => load());
+    es.addEventListener("progress", async () => {
+      const r = await fetch(`/api/campaigns/${id}/results`);
+      renderResults(await r.json());
+    });
+    es.addEventListener("idle", () => { $("live").classList.remove("on"); es.close(); });
+    es.onerror = () => { $("live").classList.remove("on"); };
+
+    load();
+  </script>
+</body>
+</html>
